@@ -5,6 +5,8 @@ dist/
 .wrangler/
 .env
 .dev-server*.log
+.docker-*.log
+.docker-*.pid
 storage/uploads/*
 storage/outputs/*
 !storage/uploads/.gitkeep

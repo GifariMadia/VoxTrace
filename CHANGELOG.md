@@ -13,10 +13,24 @@ Semua perubahan penting VoxTrace didokumentasikan di file ini. Format mengikuti 
 ### Changed
 
 - Profil WhisperX dioptimalkan untuk RTX 3050 4 GB dengan model `medium`, compute `int8`, batch size 1, dan pelepasan VRAM antar-tahap.
+- Docker build context mengecualikan dependency, cache, output build, dan penyimpanan lokal agar build web lebih cepat dan kecil.
+- Instalasi dependency pada image web dibuat deterministik tanpa lifecycle script, audit, dan funding request.
+- Stage build web menggunakan npm 11 untuk menghindari kegagalan exit handler pada npm 10 bawaan Node 22 Alpine.
+- Registry npm untuk Docker build dapat dikonfigurasi melalui `NPM_REGISTRY` ketika registry utama tidak dapat dijangkau dari container.
+- Worker menggunakan repository Ubuntu HTTPS agar instalasi dependency berhasil pada jaringan Docker yang memblokir HTTP.
+- Dependency Python worker memakai cache BuildKit serta retry/timeout panjang agar unduhan paket ML besar dapat dilanjutkan dengan aman.
+- Registry Python untuk build worker dapat dikonfigurasi melalui `PIP_INDEX_URL`.
+- Versi WhisperX dan Transformers dikunci untuk mencegah dependency backtracking dan menjaga build reproducibel.
 
 ### Fixed
 
 - Hydration mismatch pada label waktu recording demo akibat penggunaan `Date.now()` saat server render.
+
+### Verified
+
+- Seluruh stack Docker berhasil dibangun dan dijalankan: web, Go API, PostgreSQL, dan worker.
+- Worker mengenali NVIDIA GeForce RTX 3050 Laptop GPU 4 GB melalui PyTorch CUDA 12.8 dan dapat mengimpor WhisperX.
+- Endpoint web merespons HTTP 200 dan health check API mengembalikan status `ok`.
 
 ## 0.1.0 - 2026-08-14
 

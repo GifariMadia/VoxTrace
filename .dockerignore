@@ -1,0 +1,11 @@
+.git
+.gitignore
+.env
+.vinext
+.wrangler
+dist
+node_modules
+storage
+*.log
+*.pid
+voxtrace-site.tar.gz

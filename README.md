@@ -33,7 +33,16 @@ cp .env.example .env
 docker compose up --build
 ```
 
+Jika registry npm utama terputus dari jaringan Docker, atur mirror hanya pada `.env` lokal:
+
+```dotenv
+NPM_REGISTRY=https://registry.npmmirror.com
+PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+```
+
 Buka `http://localhost:3000`. Mode bawaan adalah `mock`, sehingga seluruh flow upload sampai transcript dapat diuji tanpa GPU. API tersedia di `http://localhost:8080/api/health`.
+
+Periksa service yang sedang berjalan dengan `docker compose ps`. Instalasi lokal telah diverifikasi pada RTX 3050 Laptop GPU 4 GB dengan PyTorch CUDA 12.8; gunakan mode `mock` sampai `HF_TOKEN` tersedia untuk diarization.
 
 ### Development per service
 
