@@ -14,6 +14,10 @@ Semua perubahan penting VoxTrace didokumentasikan di file ini. Format mengikuti 
 
 - Profil WhisperX dioptimalkan untuk RTX 3050 4 GB dengan model `medium`, compute `int8`, batch size 1, dan pelepasan VRAM antar-tahap.
 
+### Fixed
+
+- Hydration mismatch pada label waktu recording demo akibat penggunaan `Date.now()` saat server render.
+
 ## 0.1.0 - 2026-08-14
 
 ### Added
