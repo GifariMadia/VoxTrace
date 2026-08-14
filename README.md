@@ -75,12 +75,13 @@ Worker GPU menggunakan CUDA 12.8 dan meminta satu GPU NVIDIA melalui Docker Comp
 PIPELINE_BACKEND=whisperx
 WHISPER_MODEL=medium
 DEVICE=cuda
+DIARIZATION_DEVICE=cpu
 COMPUTE_TYPE=int8
 BATCH_SIZE=1
 HF_TOKEN=hf_...
 ```
 
-Model `medium` adalah default aman untuk VRAM 4 GB. `large-v3` dapat dicoba dengan `int8`, tetapi berisiko kehabisan VRAM saat alignment atau diarization. Worker melepaskan model ASR dan alignment dari GPU di antara tahap untuk mengurangi peak memory.
+Model `medium` adalah default aman untuk VRAM 4 GB. `large-v3` dapat dicoba dengan `int8`, tetapi berisiko kehabisan VRAM. Pada profil RTX 3050 4 GB, Whisper dan alignment berjalan di CUDA sedangkan diarization berjalan di CPU untuk menghindari kegagalan driver saat speaker embedding. Worker melepaskan model ASR dan alignment dari GPU di antara tahap untuk mengurangi peak memory.
 
 Pastikan Docker Desktop berjalan, lalu validasi akses GPU:
 

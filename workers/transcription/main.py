@@ -30,7 +30,7 @@ def is_cancelled(conn, jid):
     row=conn.execute("SELECT status FROM jobs WHERE id=%s",(jid,)).fetchone()
     return not row or row["status"]=="cancelled"
 
-def whisperx_pipeline(path):
+def whisperx_pipeline(path, progress=None):
     import torch, whisperx
     from whisperx.diarize import DiarizationPipeline
     device=os.getenv("DEVICE","cuda" if torch.cuda.is_available() else "cpu")
@@ -40,13 +40,16 @@ def whisperx_pipeline(path):
     audio=whisperx.load_audio(path); result=model.transcribe(audio,batch_size=int(os.getenv("BATCH_SIZE","1")))
     del model; gc.collect()
     if device=="cuda": torch.cuda.empty_cache()
+    if progress: progress("aligning",55)
     align_model,meta=whisperx.load_align_model(language_code=result["language"],device=device)
     result=whisperx.align(result["segments"],align_model,meta,audio,device,return_char_alignments=False)
-    del align_model; gc.collect()
-    if device=="cuda": torch.cuda.empty_cache()
+    del align_model,meta; gc.collect()
+    if device=="cuda": torch.cuda.empty_cache(); torch.cuda.synchronize()
+    if progress: progress("diarizing",75)
     token=os.getenv("HF_TOKEN");
     if token:
-        diarize=DiarizationPipeline(token=token,device=device); diar=diarize(audio)
+        diar_device=torch.device(os.getenv("DIARIZATION_DEVICE","cpu"))
+        diarize=DiarizationPipeline(token=token,device=diar_device); diar=diarize(audio)
         result=whisperx.assign_word_speakers(diar,result)
     segments=[{"speaker":s.get("speaker","UNKNOWN"),"start":s["start"],"end":s["end"],"text":s["text"].strip(),"words":s.get("words",[])} for s in result["segments"]]
     return {"language":result["language"],"duration":segments[-1]["end"] if segments else 0,"segments":segments,"metadata":{"backend":"whisperx","model":os.getenv("WHISPER_MODEL","medium"),"device":device,"compute_type":compute}}
@@ -54,12 +57,12 @@ def whisperx_pipeline(path):
 def process(conn,job):
     jid=job["id"]; started=time.monotonic()
     try:
+        def progress(stage,value):
+            conn.execute("UPDATE jobs SET stage=%s,progress=%s WHERE id=%s AND status='processing'",(stage,value,jid)); conn.commit()
         conn.execute("UPDATE jobs SET stage='transcribing',progress=20 WHERE id=%s",(jid,)); conn.commit()
-        result=whisperx_pipeline(job["stored_path"]) if os.getenv("PIPELINE_BACKEND","mock")=="whisperx" else mock_pipeline(job["stored_path"])
+        result=whisperx_pipeline(job["stored_path"],progress) if os.getenv("PIPELINE_BACKEND","mock")=="whisperx" else mock_pipeline(job["stored_path"])
         if is_cancelled(conn,jid): logging.info("cancelled job %s",jid); return
-        conn.execute("UPDATE jobs SET stage='aligning',progress=60 WHERE id=%s",(jid,)); conn.commit(); time.sleep(.15)
-        if is_cancelled(conn,jid): logging.info("cancelled job %s",jid); return
-        conn.execute("UPDATE jobs SET stage='diarizing',progress=80 WHERE id=%s",(jid,)); conn.commit()
+        conn.execute("UPDATE jobs SET stage='finalizing',progress=90 WHERE id=%s",(jid,)); conn.commit()
         full=" ".join(s["text"] for s in result["segments"]); result["metadata"]["processing_seconds"]=round(time.monotonic()-started,3)
         with conn.transaction():
             conn.execute("INSERT INTO transcripts(id,job_id,language,duration_seconds,raw_text) VALUES(%s,%s,%s,%s,%s)",(jid,jid,result["language"],result["duration"],full))
