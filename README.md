@@ -77,9 +77,13 @@ WHISPER_MODEL=medium
 DEVICE=cuda
 COMPUTE_TYPE=int8
 BATCH_SIZE=1
+CHUNK_SECONDS=600
+CHUNK_OVERLAP_SECONDS=2
 ```
 
 Model `medium` dengan compute type `int8` adalah profil aman untuk VRAM 4 GB. Pipeline ini hanya melakukan speech-to-text dan word timestamps; alignment WhisperX serta speaker diarization tidak dijalankan.
+
+Audio panjang dipotong sementara menjadi chunk 10 menit dengan overlap 2 detik. Setiap chunk diproses berurutan lalu timestamp dikembalikan ke posisi audio asli. Strategi ini menjaga penggunaan RAM tetap stabil untuk rekaman berdurasi beberapa jam.
 
 Pastikan Docker Desktop berjalan, lalu validasi akses GPU:
 

@@ -36,6 +36,8 @@ services:
       DEVICE: ${DEVICE:-cuda}
       COMPUTE_TYPE: ${COMPUTE_TYPE:-int8}
       BATCH_SIZE: ${BATCH_SIZE:-1}
+      CHUNK_SECONDS: ${CHUNK_SECONDS:-600}
+      CHUNK_OVERLAP_SECONDS: ${CHUNK_OVERLAP_SECONDS:-2}
     volumes:
       - ./storage:/storage
       - ./storage/models:/root/.cache/huggingface

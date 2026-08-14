@@ -6,6 +6,8 @@ Semua perubahan penting VoxTrace didokumentasikan di file ini. Format mengikuti 
 
 ### Added
 
+- Pemrosesan audio panjang per chunk 10 menit dengan overlap dan penggabungan timestamp otomatis.
+- Pemulihan job `processing` menjadi antrean saat worker kembali hidup setelah crash atau OOM.
 - Pembatalan job antrean maupun job aktif melalui dashboard dan endpoint API.
 - Cache model Hugging Face worker disimpan di `storage/models` agar model tidak diunduh ulang saat container dibuat kembali.
 - Pedoman kontribusi dan kebijakan dokumentasi setiap perubahan.

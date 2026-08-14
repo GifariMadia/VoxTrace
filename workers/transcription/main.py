@@ -1,5 +1,5 @@
 """VoxTrace polling worker. Use PIPELINE_BACKEND=whisper for GPU inference."""
-import gc, json, logging, os, signal, time, traceback, uuid
+import gc, json, logging, os, signal, subprocess, tempfile, time, traceback, uuid
 from pathlib import Path
 import psycopg
 from psycopg.rows import dict_row
@@ -14,8 +14,15 @@ def claim(conn):
     with conn.transaction():
         row=conn.execute("""SELECT j.id,r.stored_path,r.original_filename FROM jobs j JOIN recordings r ON r.id=j.recording_id
           WHERE j.status='queued' ORDER BY j.created_at FOR UPDATE OF j SKIP LOCKED LIMIT 1""").fetchone()
-        if row: conn.execute("UPDATE jobs SET status='processing',stage='preprocessing',progress=5,started_at=now() WHERE id=%s",(row["id"],))
+        if row: conn.execute("UPDATE jobs SET status='processing',stage='preprocessing',progress=5,error_message=NULL,started_at=now() WHERE id=%s",(row["id"],))
         return row
+
+def recover_interrupted(conn):
+    changed=conn.execute("""UPDATE jobs SET status='queued',stage='waiting',progress=0,
+      error_message='Recovered after worker restart',started_at=NULL
+      WHERE status='processing'""").rowcount
+    conn.commit()
+    if changed: logging.warning("recovered %s interrupted job(s)",changed)
 
 def mock_pipeline(path):
     stem=Path(path).stem
@@ -37,15 +44,27 @@ def whisper_pipeline(path, progress=None):
     model_name=os.getenv("WHISPER_MODEL","medium")
     model=WhisperModel(model_name,device=device,compute_type=compute)
     language=os.getenv("WHISPER_LANGUAGE") or None
-    stream,info=model.transcribe(path,language=language,beam_size=5,vad_filter=True,word_timestamps=True)
     segments=[]
-    duration=max(float(info.duration or 0),1.0)
-    for segment in stream:
-        words=[{"word":w.word,"start":w.start,"end":w.end,"probability":w.probability} for w in (segment.words or [])]
-        segments.append({"speaker":"SPEAKER_00","start":segment.start,"end":segment.end,"text":segment.text.strip(),"words":words})
-        if progress: progress("transcribing",min(85,20+int(65*segment.end/duration)))
+    duration=float(subprocess.check_output(["ffprobe","-v","error","-show_entries","format=duration","-of","default=nw=1:nk=1",path],text=True).strip())
+    chunk_seconds=float(os.getenv("CHUNK_SECONDS","600")); overlap=float(os.getenv("CHUNK_OVERLAP_SECONDS","2"))
+    detected_language=language; language_probability=None
+    with tempfile.TemporaryDirectory(prefix="voxtrace-") as temp_dir:
+        base=0.0; chunk_index=0
+        while base<duration:
+            extract_start=max(0.0,base-overlap); extract_end=min(duration,base+chunk_seconds+overlap)
+            chunk_path=os.path.join(temp_dir,f"chunk-{chunk_index:04d}.wav")
+            subprocess.run(["ffmpeg","-loglevel","error","-y","-ss",str(extract_start),"-t",str(extract_end-extract_start),"-i",path,"-ac","1","-ar","16000","-c:a","pcm_s16le",chunk_path],check=True)
+            stream,info=model.transcribe(chunk_path,language=detected_language,beam_size=5,vad_filter=True,word_timestamps=True)
+            if detected_language is None: detected_language=info.language; language_probability=info.language_probability
+            for segment in stream:
+                global_start=extract_start+segment.start; global_end=extract_start+segment.end; midpoint=(global_start+global_end)/2
+                if midpoint<base or (base+chunk_seconds<duration and midpoint>=base+chunk_seconds): continue
+                words=[{"word":w.word,"start":extract_start+w.start,"end":extract_start+w.end,"probability":w.probability} for w in (segment.words or [])]
+                segments.append({"speaker":"SPEAKER_00","start":global_start,"end":global_end,"text":segment.text.strip(),"words":words})
+                if progress: progress("transcribing",min(85,20+int(65*global_end/max(duration,1))))
+            base+=chunk_seconds; chunk_index+=1
     del model; gc.collect()
-    return {"language":info.language,"duration":segments[-1]["end"] if segments else 0,"segments":segments,"metadata":{"backend":"whisper","model":model_name,"device":device,"compute_type":compute,"language_probability":info.language_probability}}
+    return {"language":detected_language or "unknown","duration":segments[-1]["end"] if segments else 0,"segments":segments,"metadata":{"backend":"whisper","model":model_name,"device":device,"compute_type":compute,"language_probability":language_probability,"chunk_seconds":chunk_seconds,"chunk_overlap_seconds":overlap}}
 
 def process(conn,job):
     jid=job["id"]; started=time.monotonic()
@@ -70,9 +89,11 @@ def process(conn,job):
 
 def main():
     dsn=os.getenv("DATABASE_URL","postgres://voxtrace:voxtrace@localhost:5432/voxtrace")
+    recovered=False
     while not STOP:
         try:
             with psycopg.connect(dsn,row_factory=dict_row) as conn:
+                if not recovered: recover_interrupted(conn); recovered=True
                 while not STOP:
                     job=claim(conn)
                     if job: process(conn,job)
