@@ -28,6 +28,7 @@ Semua perubahan penting VoxTrace didokumentasikan di file ini. Format mengikuti 
 ### Fixed
 
 - Diarization PyAnnote menggunakan CPU pada profil GPU 4 GB untuk mencegah `CUDA driver error: device not ready`; progres kini mengikuti tahap transcribing, aligning, diarizing, dan finalizing.
+- Bahasa hasil transkripsi disimpan sebelum alignment agar finalisasi tidak gagal ketika WhisperX mengembalikan payload alignment tanpa field `language`.
 - Dashboard melakukan polling API dan mengambil transcript selesai, sehingga status tidak lagi tertahan pada `queued` ketika worker sudah memproses job.
 - Response job dan segment API menggunakan nama field JSON camelCase yang konsisten dengan frontend.
 - Hydration mismatch pada label waktu recording demo akibat penggunaan `Date.now()` saat server render.

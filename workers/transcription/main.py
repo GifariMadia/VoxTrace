@@ -38,6 +38,7 @@ def whisperx_pipeline(path, progress=None):
     compute=os.getenv("COMPUTE_TYPE","int8")
     model=whisperx.load_model(os.getenv("WHISPER_MODEL","medium"),device,compute_type=compute)
     audio=whisperx.load_audio(path); result=model.transcribe(audio,batch_size=int(os.getenv("BATCH_SIZE","1")))
+    language=result["language"]
     del model; gc.collect()
     if device=="cuda": torch.cuda.empty_cache()
     if progress: progress("aligning",55)
@@ -52,7 +53,7 @@ def whisperx_pipeline(path, progress=None):
         diarize=DiarizationPipeline(token=token,device=diar_device); diar=diarize(audio)
         result=whisperx.assign_word_speakers(diar,result)
     segments=[{"speaker":s.get("speaker","UNKNOWN"),"start":s["start"],"end":s["end"],"text":s["text"].strip(),"words":s.get("words",[])} for s in result["segments"]]
-    return {"language":result["language"],"duration":segments[-1]["end"] if segments else 0,"segments":segments,"metadata":{"backend":"whisperx","model":os.getenv("WHISPER_MODEL","medium"),"device":device,"compute_type":compute}}
+    return {"language":language,"duration":segments[-1]["end"] if segments else 0,"segments":segments,"metadata":{"backend":"whisperx","model":os.getenv("WHISPER_MODEL","medium"),"device":device,"diarization_device":str(diar_device) if token else None,"compute_type":compute}}
 
 def process(conn,job):
     jid=job["id"]; started=time.monotonic()
