@@ -8,22 +8,11 @@ type Segment = { id: string; speaker: string; start: number; end: number; text: 
 type Job = { id: string; filename: string; status: Status; stage: string; progress: number; createdAt: string; createdLabel?: string; duration?: number; segments?: Segment[] };
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api";
-const seed: Job[] = [
-  { id: "demo-001", filename: "observasi-engineering.m4a", status: "completed", stage: "done", progress: 100, createdAt: "2026-08-14T00:30:00.000Z", createdLabel: "35m lalu", duration: 184, segments: [
-    { id:"s1", speaker:"Interviewer", start:0, end:8, text:"Bisa diceritakan bagaimana alur deployment tim saat ini?" },
-    { id:"s2", speaker:"Engineer", start:8, end:24, text:"Perubahan masuk melalui pull request, lalu pipeline menjalankan pengujian dan membuat artefak untuk staging." },
-    { id:"s3", speaker:"Engineer", start:24, end:41, text:"Persetujuan produksi masih manual. Itu bagian yang paling sering membuat antrean ketika reviewer sedang tidak tersedia." },
-    { id:"s4", speaker:"Interviewer", start:41, end:52, text:"Berapa lama biasanya proses dari merge sampai produksi?" },
-    { id:"s5", speaker:"Engineer", start:52, end:70, text:"Kalau lancar sekitar tiga puluh menit, tetapi bisa menjadi beberapa jam saat persetujuan tertunda." },
-  ]},
-  { id: "demo-002", filename: "daily-ops-14-aug.wav", status: "processing", stage: "diarizing", progress: 72, createdAt: "2026-08-14T00:56:00.000Z", createdLabel: "9m lalu", duration: 428 },
-];
-
 const fmtTime = (s=0) => `${String(Math.floor(s/60)).padStart(2,"0")}:${String(Math.floor(s%60)).padStart(2,"0")}`;
 const ago = (iso:string) => { const m=Math.max(1,Math.round((Date.now()-new Date(iso).getTime())/60000)); return m<60?`${m}m lalu`:`${Math.floor(m/60)}j lalu`; };
 
 export default function Home() {
-  const [jobs,setJobs]=useState<Job[]>(seed); const [selected,setSelected]=useState("demo-001");
+  const [jobs,setJobs]=useState<Job[]>([]); const [selected,setSelected]=useState("");
   const [query,setQuery]=useState(""); const [drag,setDrag]=useState(false); const [uploading,setUploading]=useState(false);
   const input=useRef<HTMLInputElement>(null); const audio=useRef<HTMLAudioElement>(null);
   const current=jobs.find(j=>j.id===selected) || jobs[0];
@@ -31,7 +20,7 @@ export default function Home() {
 
   useEffect(()=>{ const id=setInterval(()=>setJobs(all=>all.map(j=>j.status==="processing"?{...j,progress:Math.min(96,j.progress+1)}:j)),2400); return()=>clearInterval(id); },[]);
   async function upload(file?:File){ if(!file)return; setUploading(true); const local:Job={id:crypto.randomUUID(),filename:file.name,status:"queued",stage:"waiting",progress:0,createdAt:new Date().toISOString()}; setJobs(x=>[local,...x]); setSelected(local.id);
-    try { const form=new FormData(); form.append("audio",file); const res=await fetch(`${API}/jobs`,{method:"POST",body:form}); if(!res.ok)throw new Error(); const remote=await res.json(); setJobs(x=>x.map(j=>j.id===local.id?{...j,id:remote.id}:j)); setSelected(remote.id); } catch { setTimeout(()=>setJobs(x=>x.map(j=>j.id===local.id?{...j,status:"processing",stage:"transcribing",progress:18}:j)),700); } finally {setUploading(false);} }
+    try { const form=new FormData(); form.append("audio",file); const res=await fetch(`${API}/jobs`,{method:"POST",body:form}); if(!res.ok)throw new Error(); const remote=await res.json(); setJobs(x=>x.map(j=>j.id===local.id?{...j,id:remote.id}:j)); setSelected(remote.id); } catch { setJobs(x=>x.map(j=>j.id===local.id?{...j,status:"failed",stage:"upload failed"}:j)); } finally {setUploading(false);} }
   function drop(e:DragEvent){e.preventDefault();setDrag(false);upload(e.dataTransfer.files[0]);}
   function fileChange(e:ChangeEvent<HTMLInputElement>){upload(e.target.files?.[0]);e.target.value="";}
   function exportText(){if(!current?.segments)return; const body=current.segments.map(s=>`[${fmtTime(s.start)}–${fmtTime(s.end)}] ${s.speaker}\n${s.text}`).join("\n\n"); const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([body],{type:"text/plain"}));a.download=`${current.filename}.txt`;a.click();URL.revokeObjectURL(a.href);}

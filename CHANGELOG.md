@@ -12,6 +12,7 @@ Semua perubahan penting VoxTrace didokumentasikan di file ini. Format mengikuti 
 
 ### Changed
 
+- Dashboard kini dimulai dari workspace kosong tanpa recording dan transkrip demo; kegagalan upload ditampilkan sebagai gagal, bukan disimulasikan sebagai proses aktif.
 - Profil WhisperX dioptimalkan untuk RTX 3050 4 GB dengan model `medium`, compute `int8`, batch size 1, dan pelepasan VRAM antar-tahap.
 - Docker build context mengecualikan dependency, cache, output build, dan penyimpanan lokal agar build web lebih cepat dan kecil.
 - Instalasi dependency pada image web dibuat deterministik tanpa lifecycle script, audit, dan funding request.
