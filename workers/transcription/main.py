@@ -1,5 +1,5 @@
 """VoxTrace polling worker. Use PIPELINE_BACKEND=whisperx for production inference."""
-import json, logging, os, signal, time, traceback, uuid
+import gc, json, logging, os, signal, time, traceback, uuid
 from pathlib import Path
 import psycopg
 from psycopg.rows import dict_row
@@ -28,17 +28,24 @@ def mock_pipeline(path):
 
 def whisperx_pipeline(path):
     import torch, whisperx
-    device="cuda" if torch.cuda.is_available() else "cpu"; compute="float16" if device=="cuda" else "int8"
-    model=whisperx.load_model(os.getenv("WHISPER_MODEL","large-v3"),device,compute_type=compute)
-    audio=whisperx.load_audio(path); result=model.transcribe(audio,batch_size=int(os.getenv("BATCH_SIZE","8")))
+    from whisperx.diarize import DiarizationPipeline
+    device=os.getenv("DEVICE","cuda" if torch.cuda.is_available() else "cpu")
+    if device=="cuda" and not torch.cuda.is_available(): raise RuntimeError("DEVICE=cuda but CUDA is unavailable")
+    compute=os.getenv("COMPUTE_TYPE","int8")
+    model=whisperx.load_model(os.getenv("WHISPER_MODEL","medium"),device,compute_type=compute)
+    audio=whisperx.load_audio(path); result=model.transcribe(audio,batch_size=int(os.getenv("BATCH_SIZE","1")))
+    del model; gc.collect()
+    if device=="cuda": torch.cuda.empty_cache()
     align_model,meta=whisperx.load_align_model(language_code=result["language"],device=device)
     result=whisperx.align(result["segments"],align_model,meta,audio,device,return_char_alignments=False)
+    del align_model; gc.collect()
+    if device=="cuda": torch.cuda.empty_cache()
     token=os.getenv("HF_TOKEN");
     if token:
-        diarize=whisperx.DiarizationPipeline(use_auth_token=token,device=device); diar=diarize(audio)
+        diarize=DiarizationPipeline(token=token,device=device); diar=diarize(audio)
         result=whisperx.assign_word_speakers(diar,result)
     segments=[{"speaker":s.get("speaker","UNKNOWN"),"start":s["start"],"end":s["end"],"text":s["text"].strip(),"words":s.get("words",[])} for s in result["segments"]]
-    return {"language":result["language"],"duration":segments[-1]["end"] if segments else 0,"segments":segments,"metadata":{"backend":"whisperx","model":os.getenv("WHISPER_MODEL","large-v3"),"device":device}}
+    return {"language":result["language"],"duration":segments[-1]["end"] if segments else 0,"segments":segments,"metadata":{"backend":"whisperx","model":os.getenv("WHISPER_MODEL","medium"),"device":device,"compute_type":compute}}
 
 def process(conn,job):
     jid=job["id"]; started=time.monotonic()

@@ -28,9 +28,19 @@ services:
     environment:
       DATABASE_URL: postgres://voxtrace:voxtrace@postgres:5432/voxtrace
       PIPELINE_BACKEND: ${PIPELINE_BACKEND:-mock}
-      WHISPER_MODEL: ${WHISPER_MODEL:-large-v3}
+      WHISPER_MODEL: ${WHISPER_MODEL:-medium}
+      DEVICE: ${DEVICE:-cuda}
+      COMPUTE_TYPE: ${COMPUTE_TYPE:-int8}
+      BATCH_SIZE: ${BATCH_SIZE:-1}
       HF_TOKEN: ${HF_TOKEN:-}
     volumes: ["./storage:/storage"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     depends_on:
       postgres: { condition: service_healthy }
   web:

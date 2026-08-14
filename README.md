@@ -60,12 +60,24 @@ python workers/transcription/main.py
 
 ## Mengaktifkan WhisperX
 
-Worker produksi membutuhkan image CUDA/PyTorch/WhisperX yang sesuai dengan GPU host, NVIDIA Container Toolkit, serta token Hugging Face yang telah menerima syarat model PyAnnote. Tambahkan dependency ML ke image worker, lalu isi:
+Worker GPU menggunakan CUDA 12.8 dan meminta satu GPU NVIDIA melalui Docker Compose. Token Hugging Face harus memiliki akses ke model diarization PyAnnote. Untuk RTX 3050 4 GB gunakan profil bawaan berikut:
 
 ```dotenv
 PIPELINE_BACKEND=whisperx
-WHISPER_MODEL=large-v3
+WHISPER_MODEL=medium
+DEVICE=cuda
+COMPUTE_TYPE=int8
+BATCH_SIZE=1
 HF_TOKEN=hf_...
+```
+
+Model `medium` adalah default aman untuk VRAM 4 GB. `large-v3` dapat dicoba dengan `int8`, tetapi berisiko kehabisan VRAM saat alignment atau diarization. Worker melepaskan model ASR dan alignment dari GPU di antara tahap untuk mengurangi peak memory.
+
+Pastikan Docker Desktop berjalan, lalu validasi akses GPU:
+
+```bash
+docker run --rm --gpus all nvidia/cuda:12.8.1-base-ubuntu22.04 nvidia-smi
+docker compose up --build
 ```
 
 Kontrak worker sengaja tetap sama untuk mode mock dan WhisperX. Dengan begitu UI, API, database, retry, serta export dapat dikembangkan dan diuji tanpa menunggu GPU.

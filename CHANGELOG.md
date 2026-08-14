@@ -8,6 +8,11 @@ Semua perubahan penting VoxTrace didokumentasikan di file ini. Format mengikuti 
 
 - Pedoman kontribusi dan kebijakan dokumentasi setiap perubahan.
 - Dokumentasi arsitektur, development workflow, dan validasi lokal.
+- Worker CUDA 12.8 dan reservasi GPU NVIDIA melalui Docker Compose.
+
+### Changed
+
+- Profil WhisperX dioptimalkan untuk RTX 3050 4 GB dengan model `medium`, compute `int8`, batch size 1, dan pelepasan VRAM antar-tahap.
 
 ## 0.1.0 - 2026-08-14
 
