@@ -26,6 +26,10 @@ def mock_pipeline(path):
     ]
     return {"language":"id","duration":21.0,"segments":segments,"metadata":{"backend":"mock","pipeline_version":"0.1.0"}}
 
+def is_cancelled(conn, jid):
+    row=conn.execute("SELECT status FROM jobs WHERE id=%s",(jid,)).fetchone()
+    return not row or row["status"]=="cancelled"
+
 def whisperx_pipeline(path):
     import torch, whisperx
     from whisperx.diarize import DiarizationPipeline
@@ -52,7 +56,9 @@ def process(conn,job):
     try:
         conn.execute("UPDATE jobs SET stage='transcribing',progress=20 WHERE id=%s",(jid,)); conn.commit()
         result=whisperx_pipeline(job["stored_path"]) if os.getenv("PIPELINE_BACKEND","mock")=="whisperx" else mock_pipeline(job["stored_path"])
+        if is_cancelled(conn,jid): logging.info("cancelled job %s",jid); return
         conn.execute("UPDATE jobs SET stage='aligning',progress=60 WHERE id=%s",(jid,)); conn.commit(); time.sleep(.15)
+        if is_cancelled(conn,jid): logging.info("cancelled job %s",jid); return
         conn.execute("UPDATE jobs SET stage='diarizing',progress=80 WHERE id=%s",(jid,)); conn.commit()
         full=" ".join(s["text"] for s in result["segments"]); result["metadata"]["processing_seconds"]=round(time.monotonic()-started,3)
         with conn.transaction():
@@ -63,6 +69,7 @@ def process(conn,job):
         logging.info("completed job %s",jid)
     except Exception as exc:
         conn.rollback(); logging.error("job %s failed: %s\n%s",jid,exc,traceback.format_exc())
+        if is_cancelled(conn,jid): return
         conn.execute("UPDATE jobs SET status='failed',stage='failed',error_message=%s WHERE id=%s",(str(exc)[:1000],jid));conn.commit()
 
 def main():

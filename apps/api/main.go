@@ -64,6 +64,7 @@ func main() {
 	r.Get("/api/jobs/{id}/transcript", s.transcript)
 	r.Get("/api/jobs/{id}/export", s.exportText)
 	r.Post("/api/jobs/{id}/retry", s.retry)
+	r.Post("/api/jobs/{id}/cancel", s.cancel)
 	r.Delete("/api/jobs/{id}", s.deleteJob)
 	addr := env("HTTP_ADDR", ":8080")
 	slog.Info("VoxTrace API ready", "address", addr)
@@ -203,6 +204,14 @@ func (s *server) retry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	write(w, 202, map[string]string{"status": "queued"})
+}
+func (s *server) cancel(w http.ResponseWriter, r *http.Request) {
+	tag, err := s.db.Exec(r.Context(), `UPDATE jobs SET status='cancelled',stage='cancelled',completed_at=now() WHERE id=$1 AND status IN ('queued','processing')`, chi.URLParam(r, "id"))
+	if err != nil || tag.RowsAffected() == 0 {
+		write(w, 409, map[string]string{"error": "job is not cancellable"})
+		return
+	}
+	write(w, 200, map[string]string{"status": "cancelled"})
 }
 func (s *server) deleteJob(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")

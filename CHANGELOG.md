@@ -6,6 +6,8 @@ Semua perubahan penting VoxTrace didokumentasikan di file ini. Format mengikuti 
 
 ### Added
 
+- Pembatalan job antrean maupun job aktif melalui dashboard dan endpoint API.
+- Cache model Hugging Face worker disimpan di `storage/models` agar model tidak diunduh ulang saat container dibuat kembali.
 - Pedoman kontribusi dan kebijakan dokumentasi setiap perubahan.
 - Dokumentasi arsitektur, development workflow, dan validasi lokal.
 - Worker CUDA 12.8 dan reservasi GPU NVIDIA melalui Docker Compose.

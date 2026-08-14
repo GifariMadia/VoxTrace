@@ -19,7 +19,8 @@ services:
       DATABASE_URL: postgres://voxtrace:voxtrace@postgres:5432/voxtrace?sslmode=disable
       STORAGE_DIR: /storage/uploads
       CORS_ORIGIN: http://localhost:3000
-    volumes: ["./storage:/storage"]
+    volumes:
+      - ./storage:/storage
     ports: ["8080:8080"]
     depends_on:
       postgres: { condition: service_healthy }
@@ -36,7 +37,10 @@ services:
       COMPUTE_TYPE: ${COMPUTE_TYPE:-int8}
       BATCH_SIZE: ${BATCH_SIZE:-1}
       HF_TOKEN: ${HF_TOKEN:-}
-    volumes: ["./storage:/storage"]
+    volumes:
+      - ./storage:/storage
+      - ./storage/models:/root/.cache/huggingface
+      - ./workers/transcription/main.py:/app/main.py:ro
     deploy:
       resources:
         reservations:

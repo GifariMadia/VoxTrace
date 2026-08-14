@@ -9,6 +9,7 @@ dist/
 .docker-*.pid
 storage/uploads/*
 storage/outputs/*
+storage/models/*
 !storage/uploads/.gitkeep
 !storage/outputs/.gitkeep
 __pycache__/
