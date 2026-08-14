@@ -212,8 +212,8 @@ export default function Home() {
         </div>
         <div className="stat">
           <span>PIPELINE</span>
-          <strong>Whisper Large</strong>
-          <small>+ WhisperX alignment</small>
+              <strong>Whisper Medium</strong>
+              <small>Faster-Whisper / CUDA int8</small>
           <div className="wave">▂▅▃▇▄▆▂▅▇▃▆▂▇▅▃▆▂</div>
         </div>
       </section>

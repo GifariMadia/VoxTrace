@@ -1,13 +1,13 @@
 # VoxTrace
 
-VoxTrace mengubah rekaman observasi menjadi transkrip terstruktur dengan word alignment dan speaker diarization. Arsitekturnya terdiri dari web workspace, Go API, PostgreSQL, dan Python ML worker.
+VoxTrace mengubah rekaman speech menjadi transkrip terstruktur. Arsitekturnya terdiri dari web workspace, Go API, PostgreSQL, dan Python ML worker.
 
 ## Status
 
 MVP tersedia dengan dua mode pemrosesan:
 
 - `mock`: menguji alur upload sampai transcript tanpa GPU.
-- `whisperx`: menjalankan Whisper Large, alignment, dan diarization sebenarnya.
+- `whisper`: menjalankan Faster-Whisper Medium pada GPU.
 
 ## Arsitektur
 
@@ -19,7 +19,7 @@ Web workspace (Next.js-compatible vinext)
              |
              v
     Python transcription worker
-      Whisper Large + WhisperX
+      Faster-Whisper Medium
 ```
 
 Penyimpanan file MVP menggunakan filesystem lokal. PostgreSQL menyimpan recording metadata, lifecycle job, transcript, segment, dan processing metadata.
@@ -40,9 +40,9 @@ NPM_REGISTRY=https://registry.npmmirror.com
 PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
 ```
 
-Buka `http://localhost:3000`. Mode bawaan adalah `mock`, sehingga seluruh flow upload sampai transcript dapat diuji tanpa GPU. API tersedia di `http://localhost:8080/api/health`.
+Buka `http://localhost:3000`. Mode bawaan adalah `whisper` untuk transkripsi GPU. API tersedia di `http://localhost:8080/api/health`.
 
-Periksa service yang sedang berjalan dengan `docker compose ps`. Instalasi lokal telah diverifikasi pada RTX 3050 Laptop GPU 4 GB dengan PyTorch CUDA 12.8; gunakan mode `mock` sampai `HF_TOKEN` tersedia untuk diarization.
+Periksa service yang sedang berjalan dengan `docker compose ps`. Instalasi lokal telah diverifikasi pada RTX 3050 Laptop GPU 4 GB dengan CUDA 12.8.
 
 ### Development per service
 
@@ -67,21 +67,19 @@ python -m pip install -r workers/transcription/requirements.txt
 python workers/transcription/main.py
 ```
 
-## Mengaktifkan WhisperX
+## Profil Faster-Whisper
 
-Worker GPU menggunakan CUDA 12.8 dan meminta satu GPU NVIDIA melalui Docker Compose. Token Hugging Face harus memiliki akses ke model diarization PyAnnote. Untuk RTX 3050 4 GB gunakan profil bawaan berikut:
+Worker GPU menggunakan CUDA 12.8 dan meminta satu GPU NVIDIA melalui Docker Compose. Untuk RTX 3050 4 GB gunakan profil bawaan berikut:
 
 ```dotenv
-PIPELINE_BACKEND=whisperx
+PIPELINE_BACKEND=whisper
 WHISPER_MODEL=medium
 DEVICE=cuda
-DIARIZATION_DEVICE=cpu
 COMPUTE_TYPE=int8
 BATCH_SIZE=1
-HF_TOKEN=hf_...
 ```
 
-Model `medium` adalah default aman untuk VRAM 4 GB. `large-v3` dapat dicoba dengan `int8`, tetapi berisiko kehabisan VRAM. Pada profil RTX 3050 4 GB, Whisper dan alignment berjalan di CUDA sedangkan diarization berjalan di CPU untuk menghindari kegagalan driver saat speaker embedding. Worker melepaskan model ASR dan alignment dari GPU di antara tahap untuk mengurangi peak memory.
+Model `medium` dengan compute type `int8` adalah profil aman untuk VRAM 4 GB. Pipeline ini hanya melakukan speech-to-text dan word timestamps; alignment WhisperX serta speaker diarization tidak dijalankan.
 
 Pastikan Docker Desktop berjalan, lalu validasi akses GPU:
 
@@ -90,7 +88,7 @@ docker run --rm --gpus all nvidia/cuda:12.8.1-base-ubuntu22.04 nvidia-smi
 docker compose up --build
 ```
 
-Kontrak worker sengaja tetap sama untuk mode mock dan WhisperX. Dengan begitu UI, API, database, retry, serta export dapat dikembangkan dan diuji tanpa menunggu GPU.
+Kontrak worker tetap sama untuk mode mock dan Whisper. Dengan begitu UI, API, database, retry, serta export dapat dikembangkan dan diuji tanpa GPU.
 
 ## Endpoint
 

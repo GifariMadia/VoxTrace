@@ -14,8 +14,9 @@ Semua perubahan penting VoxTrace didokumentasikan di file ini. Format mengikuti 
 
 ### Changed
 
+- Pipeline produksi disederhanakan dari WhisperX menjadi Faster-Whisper Medium murni pada CUDA `int8`; alignment eksternal dan speaker diarization dinonaktifkan untuk meningkatkan kecepatan serta menjaga hasil ASR asli.
 - Dashboard kini dimulai dari workspace kosong tanpa recording dan transkrip demo; kegagalan upload ditampilkan sebagai gagal, bukan disimulasikan sebagai proses aktif.
-- Profil WhisperX dioptimalkan untuk RTX 3050 4 GB dengan model `medium`, compute `int8`, batch size 1, dan pelepasan VRAM antar-tahap.
+- Profil Faster-Whisper dioptimalkan untuk RTX 3050 4 GB dengan model `medium` dan compute type `int8`.
 - Docker build context mengecualikan dependency, cache, output build, dan penyimpanan lokal agar build web lebih cepat dan kecil.
 - Instalasi dependency pada image web dibuat deterministik tanpa lifecycle script, audit, dan funding request.
 - Stage build web menggunakan npm 11 untuk menghindari kegagalan exit handler pada npm 10 bawaan Node 22 Alpine.
@@ -23,7 +24,7 @@ Semua perubahan penting VoxTrace didokumentasikan di file ini. Format mengikuti 
 - Worker menggunakan repository Ubuntu HTTPS agar instalasi dependency berhasil pada jaringan Docker yang memblokir HTTP.
 - Dependency Python worker memakai cache BuildKit serta retry/timeout panjang agar unduhan paket ML besar dapat dilanjutkan dengan aman.
 - Registry Python untuk build worker dapat dikonfigurasi melalui `PIP_INDEX_URL`.
-- Versi WhisperX dan Transformers dikunci untuk mencegah dependency backtracking dan menjaga build reproducibel.
+- Versi Faster-Whisper dikunci untuk menjaga build reproducibel.
 
 ### Fixed
 
@@ -36,7 +37,7 @@ Semua perubahan penting VoxTrace didokumentasikan di file ini. Format mengikuti 
 ### Verified
 
 - Seluruh stack Docker berhasil dibangun dan dijalankan: web, Go API, PostgreSQL, dan worker.
-- Worker mengenali NVIDIA GeForce RTX 3050 Laptop GPU 4 GB melalui PyTorch CUDA 12.8 dan dapat mengimpor WhisperX.
+- Worker mengenali NVIDIA GeForce RTX 3050 Laptop GPU 4 GB dan berhasil menjalankan Faster-Whisper Medium dengan CUDA `int8`.
 - Endpoint web merespons HTTP 200 dan health check API mengembalikan status `ok`.
 
 ## 0.1.0 - 2026-08-14

@@ -31,13 +31,11 @@ services:
         PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple}
     environment:
       DATABASE_URL: postgres://voxtrace:voxtrace@postgres:5432/voxtrace
-      PIPELINE_BACKEND: ${PIPELINE_BACKEND:-mock}
+      PIPELINE_BACKEND: ${PIPELINE_BACKEND:-whisper}
       WHISPER_MODEL: ${WHISPER_MODEL:-medium}
       DEVICE: ${DEVICE:-cuda}
-      DIARIZATION_DEVICE: ${DIARIZATION_DEVICE:-cpu}
       COMPUTE_TYPE: ${COMPUTE_TYPE:-int8}
       BATCH_SIZE: ${BATCH_SIZE:-1}
-      HF_TOKEN: ${HF_TOKEN:-}
     volumes:
       - ./storage:/storage
       - ./storage/models:/root/.cache/huggingface

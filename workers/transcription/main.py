@@ -1,4 +1,4 @@
-"""VoxTrace polling worker. Use PIPELINE_BACKEND=whisperx for production inference."""
+"""VoxTrace polling worker. Use PIPELINE_BACKEND=whisper for GPU inference."""
 import gc, json, logging, os, signal, time, traceback, uuid
 from pathlib import Path
 import psycopg
@@ -21,7 +21,7 @@ def mock_pipeline(path):
     stem=Path(path).stem
     segments=[
       {"speaker":"SPEAKER_00","start":0.0,"end":6.4,"text":"Rekaman berhasil diterima dan diproses oleh pipeline VoxTrace."},
-      {"speaker":"SPEAKER_01","start":6.4,"end":14.8,"text":"Mode demo aktif. Aktifkan backend WhisperX untuk transkripsi audio sebenarnya."},
+      {"speaker":"SPEAKER_01","start":6.4,"end":14.8,"text":"Mode demo aktif. Aktifkan backend Whisper untuk transkripsi audio sebenarnya."},
       {"speaker":"SPEAKER_00","start":14.8,"end":21.0,"text":f"Identitas internal rekaman ini adalah {stem}."},
     ]
     return {"language":"id","duration":21.0,"segments":segments,"metadata":{"backend":"mock","pipeline_version":"0.1.0"}}
@@ -30,30 +30,22 @@ def is_cancelled(conn, jid):
     row=conn.execute("SELECT status FROM jobs WHERE id=%s",(jid,)).fetchone()
     return not row or row["status"]=="cancelled"
 
-def whisperx_pipeline(path, progress=None):
-    import torch, whisperx
-    from whisperx.diarize import DiarizationPipeline
-    device=os.getenv("DEVICE","cuda" if torch.cuda.is_available() else "cpu")
-    if device=="cuda" and not torch.cuda.is_available(): raise RuntimeError("DEVICE=cuda but CUDA is unavailable")
+def whisper_pipeline(path, progress=None):
+    from faster_whisper import WhisperModel
+    device=os.getenv("DEVICE","cuda")
     compute=os.getenv("COMPUTE_TYPE","int8")
-    model=whisperx.load_model(os.getenv("WHISPER_MODEL","medium"),device,compute_type=compute)
-    audio=whisperx.load_audio(path); result=model.transcribe(audio,batch_size=int(os.getenv("BATCH_SIZE","1")))
-    language=result["language"]
+    model_name=os.getenv("WHISPER_MODEL","medium")
+    model=WhisperModel(model_name,device=device,compute_type=compute)
+    language=os.getenv("WHISPER_LANGUAGE") or None
+    stream,info=model.transcribe(path,language=language,beam_size=5,vad_filter=True,word_timestamps=True)
+    segments=[]
+    duration=max(float(info.duration or 0),1.0)
+    for segment in stream:
+        words=[{"word":w.word,"start":w.start,"end":w.end,"probability":w.probability} for w in (segment.words or [])]
+        segments.append({"speaker":"SPEAKER_00","start":segment.start,"end":segment.end,"text":segment.text.strip(),"words":words})
+        if progress: progress("transcribing",min(85,20+int(65*segment.end/duration)))
     del model; gc.collect()
-    if device=="cuda": torch.cuda.empty_cache()
-    if progress: progress("aligning",55)
-    align_model,meta=whisperx.load_align_model(language_code=result["language"],device=device)
-    result=whisperx.align(result["segments"],align_model,meta,audio,device,return_char_alignments=False)
-    del align_model,meta; gc.collect()
-    if device=="cuda": torch.cuda.empty_cache(); torch.cuda.synchronize()
-    if progress: progress("diarizing",75)
-    token=os.getenv("HF_TOKEN");
-    if token:
-        diar_device=torch.device(os.getenv("DIARIZATION_DEVICE","cpu"))
-        diarize=DiarizationPipeline(token=token,device=diar_device); diar=diarize(audio)
-        result=whisperx.assign_word_speakers(diar,result)
-    segments=[{"speaker":s.get("speaker","UNKNOWN"),"start":s["start"],"end":s["end"],"text":s["text"].strip(),"words":s.get("words",[])} for s in result["segments"]]
-    return {"language":language,"duration":segments[-1]["end"] if segments else 0,"segments":segments,"metadata":{"backend":"whisperx","model":os.getenv("WHISPER_MODEL","medium"),"device":device,"diarization_device":str(diar_device) if token else None,"compute_type":compute}}
+    return {"language":info.language,"duration":segments[-1]["end"] if segments else 0,"segments":segments,"metadata":{"backend":"whisper","model":model_name,"device":device,"compute_type":compute,"language_probability":info.language_probability}}
 
 def process(conn,job):
     jid=job["id"]; started=time.monotonic()
@@ -61,7 +53,7 @@ def process(conn,job):
         def progress(stage,value):
             conn.execute("UPDATE jobs SET stage=%s,progress=%s WHERE id=%s AND status='processing'",(stage,value,jid)); conn.commit()
         conn.execute("UPDATE jobs SET stage='transcribing',progress=20 WHERE id=%s",(jid,)); conn.commit()
-        result=whisperx_pipeline(job["stored_path"],progress) if os.getenv("PIPELINE_BACKEND","mock")=="whisperx" else mock_pipeline(job["stored_path"])
+        result=whisper_pipeline(job["stored_path"],progress) if os.getenv("PIPELINE_BACKEND","mock")=="whisper" else mock_pipeline(job["stored_path"])
         if is_cancelled(conn,jid): logging.info("cancelled job %s",jid); return
         conn.execute("UPDATE jobs SET stage='finalizing',progress=90 WHERE id=%s",(jid,)); conn.commit()
         full=" ".join(s["text"] for s in result["segments"]); result["metadata"]["processing_seconds"]=round(time.monotonic()-started,3)
