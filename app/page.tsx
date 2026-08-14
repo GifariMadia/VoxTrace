@@ -18,7 +18,27 @@ export default function Home() {
   const current=jobs.find(j=>j.id===selected) || jobs[0];
   const segments=useMemo(()=>current?.segments?.filter(s=>s.text.toLowerCase().includes(query.toLowerCase()))||[],[current,query]);
 
-  useEffect(()=>{ const id=setInterval(()=>setJobs(all=>all.map(j=>j.status==="processing"?{...j,progress:Math.min(96,j.progress+1)}:j)),2400); return()=>clearInterval(id); },[]);
+  useEffect(()=>{
+    let active=true;
+    async function refresh(){
+      try {
+        const response=await fetch(`${API}/jobs`,{cache:"no-store"});
+        if(!response.ok)return;
+        const remote:Job[]=await response.json();
+        const hydrated=await Promise.all(remote.map(async job=>{
+          if(job.status!=="completed")return job;
+          try {
+            const transcript=await fetch(`${API}/jobs/${job.id}/transcript`,{cache:"no-store"});
+            if(!transcript.ok)return job;
+            const data=await transcript.json();
+            return {...job,duration:data.duration,segments:data.segments};
+          } catch { return job; }
+        }));
+        if(active){setJobs(hydrated);setSelected(value=>hydrated.some(job=>job.id===value)?value:(hydrated[0]?.id||""));}
+      } catch { /* API may be temporarily unavailable while containers restart. */ }
+    }
+    refresh(); const id=setInterval(refresh,2000); return()=>{active=false;clearInterval(id)};
+  },[]);
   async function upload(file?:File){ if(!file)return; setUploading(true); const local:Job={id:crypto.randomUUID(),filename:file.name,status:"queued",stage:"waiting",progress:0,createdAt:new Date().toISOString()}; setJobs(x=>[local,...x]); setSelected(local.id);
     try { const form=new FormData(); form.append("audio",file); const res=await fetch(`${API}/jobs`,{method:"POST",body:form}); if(!res.ok)throw new Error(); const remote=await res.json(); setJobs(x=>x.map(j=>j.id===local.id?{...j,id:remote.id}:j)); setSelected(remote.id); } catch { setJobs(x=>x.map(j=>j.id===local.id?{...j,status:"failed",stage:"upload failed"}:j)); } finally {setUploading(false);} }
   function drop(e:DragEvent){e.preventDefault();setDrag(false);upload(e.dataTransfer.files[0]);}
