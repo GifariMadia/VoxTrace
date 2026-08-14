@@ -1,0 +1,45 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-voxtrace}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-voxtrace}
+      POSTGRES_DB: ${POSTGRES_DB:-voxtrace}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U voxtrace"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  api:
+    build: ./apps/api
+    environment:
+      DATABASE_URL: postgres://voxtrace:voxtrace@postgres:5432/voxtrace?sslmode=disable
+      STORAGE_DIR: /storage/uploads
+      CORS_ORIGIN: http://localhost:3000
+    volumes: ["./storage:/storage"]
+    ports: ["8080:8080"]
+    depends_on:
+      postgres: { condition: service_healthy }
+  worker:
+    build: ./workers/transcription
+    environment:
+      DATABASE_URL: postgres://voxtrace:voxtrace@postgres:5432/voxtrace
+      PIPELINE_BACKEND: ${PIPELINE_BACKEND:-mock}
+      WHISPER_MODEL: ${WHISPER_MODEL:-large-v3}
+      HF_TOKEN: ${HF_TOKEN:-}
+    volumes: ["./storage:/storage"]
+    depends_on:
+      postgres: { condition: service_healthy }
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8080/api
+    ports: ["3000:3000"]
+    depends_on: [api]
+volumes:
+  pgdata:
