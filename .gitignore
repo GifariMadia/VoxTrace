@@ -14,3 +14,7 @@ storage/models/*
 !storage/outputs/.gitkeep
 __pycache__/
 *.pyc
+build/extractions/
+build/qa-*.pdf
+build/*qa-*.pdf
+build/short.pdf

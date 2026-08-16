@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-16
+
+- Menambahkan ekspor terotomasi untuk seluruh hasil transkripsi yang selesai.
+- Menambahkan paket tujuh dokumen Word: satu ikhtisar gabungan dan enam laporan rekaman komprehensif.
+- Setiap laporan memuat ringkasan eksekutif, tema, tindak lanjut, peta waktu, catatan kualitas, dan transkrip kronologis.
+- Menambahkan alur render Microsoft Word dan contact sheet untuk pemeriksaan visual dokumen di Windows.
+
 Semua perubahan penting VoxTrace didokumentasikan di file ini. Format mengikuti prinsip [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
