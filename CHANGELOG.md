@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-08-17
+
+- Mengubah tujuh laporan ekstraksi menjadi satu ikhtisar portofolio dan enam panduan operasional mandiri.
+- Mengorelasikan transkripsi dengan satu dokumen scan enam halaman dan enam foto catatan lapangan tanpa mencampur kewenangan antardomain.
+- Menghapus timeline dan transkrip mentah dari dokumen utama; struktur baru berfokus pada tujuan, ruang lingkup, alur kerja, kontrol, risiko, implementasi, dan verifikasi.
+- Menandai angka, istilah, nama, dan set point yang belum pasti sebagai hal yang perlu diverifikasi terhadap sumber formal.
+- Memeriksa tampilan seluruh 21 halaman hasil render Word.
+
 ## 2026-08-16
 
 - Menambahkan ekspor terotomasi untuk seluruh hasil transkripsi yang selesai.
